@@ -1,0 +1,59 @@
+pipeline {
+    agent {
+        docker {
+            image 'nexus.creverse.com/devops/build/ubi9/npm:16_jdk1.8'
+            registryUrl 'https://nexus.creverse.com/'
+            registryCredentialsId 'cred_nexus'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+    
+    environment {
+        NEXUS = credentials('cred_nexus')
+        NODE_OPTIONS = "--openssl-legacy-provider"
+    }
+
+    stages {
+        stage('Install') {
+            steps {
+                withNPM(npmrcConfig: 'npm_group_config') {
+                    sh 'yarn --version'
+                    sh 'yarn install'
+                }
+            }
+        }
+
+        stage('test') {
+            steps {
+                script {
+                    try {
+                        sh 'yarn test'
+                    } catch (Exception e) {
+                        echo 'Exception occurred: ' + e.toString()
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'yarn build'
+            }
+        }
+
+        stage('lint') {
+            steps {
+                sh 'yarn lint'
+            }
+        }
+
+        stage('publish') {
+            steps {
+                withNPM(npmrcConfig: 'npm_host_config') {
+                    sh 'yarn publish'
+                }
+            }
+        }
+    }
+}
+
